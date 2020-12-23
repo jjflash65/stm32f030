@@ -1,0 +1,1 @@
+/tmp/stm32flash/stm32chflash -w n5510_demo.bin -g 0 /dev/ttyUSB0

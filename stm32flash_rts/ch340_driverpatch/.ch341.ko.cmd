@@ -1,0 +1,1 @@
+cmd_/home/c_programs/stm32flash/ch340_driverpatch/ch341.ko := ld -r -m elf_i386 -T ./scripts/module-common.lds --build-id  -o /home/c_programs/stm32flash/ch340_driverpatch/ch341.ko /home/c_programs/stm32flash/ch340_driverpatch/ch341.o /home/c_programs/stm32flash/ch340_driverpatch/ch341.mod.o

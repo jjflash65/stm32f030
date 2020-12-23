@@ -1,0 +1,96 @@
+#!/bin/bash
+# -----------------------------------------------
+#   Flashen des ATtiny13 als "Reset-Controller"
+#   fuer einen STM32-Mikrocontroller
+#
+#   19.02.2020 R. Seelig
+# -----------------------------------------------
+make clean
+make
+
+PS3=$'\nBitte waehlen (1..6): '
+echo -e "\nZu benutzender Programmer um die ATtiny13 Firmware zu flashen\n"
+
+select wahl in "USBtinyISP" "USBasp" "PonySer" "STK500v2" "AVRISP" "Abbruch"
+do
+  case $wahl in
+    USBtinyISP) programmer="usbtiny"; break;;
+    USBasp) programmer="usbasp"; break;;
+    PonySer) programmer="ponyser"; break;;
+    Diamex-AVR---STK500v2) programmer="stk500v2"; break;;
+    AVRISP) programmer="avrisp"; break;;
+    Abbruch) programmer="ende"; break;;
+  esac
+done
+
+if [ "$programmer" == "ende" ]; then
+  exit
+fi
+
+echo -e "\n\e[40;1;32mGewaehlter Programmer: $programmer\n \e[49;0;39m"
+
+if [ "$programmer" == "ponyser" ] || [ "$programmer" == "stk500v2" ] || [ "$programmer" == "avrisp" ]; then
+
+  echo -e "(ANMERKUNG: In Linux entspricht dem COM1 der"
+  echo -e " Geraetename /dev/ttyS0 ... COM2 Port ist dann /dev/ttyS1 etc."
+  echo -e "\nAn welchen Port ist der serielle Programmer (PonySer / AVRISP oder Diamex) angeschlossen ?\n"
+  echo -e "\e[1;33mHinweis: - PonySer kann nur am ECHTEN Com-Port betrieben werden (kein USB Adapter)"
+  echo -e "         - Diamex meldet sich als ttyACM0 an."
+  echo -e "         - AVRISP kann auch ueber einen USB Adapter laufen, entsprechend"
+  echo -e "           ist hier ggf. ttyUSB0 zu waehlen\n\n\e[49;0;39m"
+
+  PS3=$'\n\nBitte waehlen (1..8):'
+
+  select wahl in "COM1" "COM2" "COM3" "COM4" "ttyUSB0" "ttyUSB1" "ttyACM0" "ttyACM1" "Abbruch"
+  do
+    case $wahl in
+      COM1) comport="/dev/ttyS0"; break;;
+      COM2) comport="/dev/ttyS1"; break;;
+      COM3) comport="/dev/ttyS2"; break;;
+      COM4) comport="/dev/ttyS3"; break;;
+      ttyUSB0) comport="/dev/ttyUSB0"; break;;
+      ttyUSB1) comport="/dev/ttyUSB1"; break;;
+      ttyACM0) comport="/dev/ttyACM00"; break;;
+      ttyACM1) comport="/dev/ttyACM01"; break;;
+      Abbruch) comport="ende"; break;;
+    esac
+  done
+  if [ "$comport" == "ende" ]; then
+    exit
+  fi
+
+  echo -e "\n\e[40;1;32mGewaehlter serieller Port: $comport \e[49;0;39m"
+
+fi
+
+hexfile="./reset_stm32_b.hex"
+part="-p attiny13"
+fuses="-U lfuse:w:0x79:m -U hfuse:w:0xff:m";
+
+calldude="avrdude -c $programmer -V -B 10"
+#calldude="avrdude -c $programmer -B 3"
+if [ "$programmer" == "ponyser" ]; then
+  calldude="$calldude -P $comport"
+fi
+if [ "$programmer" == "stk500v2" ]; then
+  calldude="$calldude -P $comport -b 115200"
+fi
+if [ "$programmer" == "avrisp" ]; then
+  calldude="$calldude -P $comport -b 38400"
+fi
+
+calldude="$calldude $part -U flash:w:$hexfile $fuses"
+
+korrekt=1
+while [ $korrekt -eq 1 ]; do
+  echo -e "\nDer Aufruf von AVRDUDE geschieht folgenderweise:\n\n\e[40;1;33m$calldude\e[49;0;39m\n\nSoll dieser so ausgefuehrt werden (j/n)? "
+  read -e jn
+  if [ "$jn" == "j" ]; then
+    echo -e "AVRDUDE wird gestartet...\n"
+    $calldude
+    korrekt=0
+  fi
+  if [ "$jn" == "n" ]; then
+    korrekt=0
+  fi
+done

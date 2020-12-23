@@ -1,0 +1,435 @@
+##############################################################################################
+  TM1638
+
+  - Chinaboard 1: 8 stellige 7-Segmentanzeige mit 8 Tasten und 8 Einzel-LEDS
+  - Chinaboard 2: 8 stellige 7-Segmentanzeige mit 16 Tasten
+##############################################################################################
+
+Urspruenglich sollte ein Softwaremodul entstehen, dass geeignet fuer die Bausteine
+TM1637, TM1651 und TM1638 sein sollte.
+
+Bei genauerer Durchsicht der Datenblaetter (noch bevor die Bausteine dem Autor zur Verfuegung
+standen stellte sich jedoch heraus, dass die Bausteine (um es mit einer bekannten Werbung
+auszudruecken) sehr aehnlich und doch komplette verschieden sind.
+
+Gravierendster Unterschied besteht in der Art der Kommunikation zwischen steuerndem Controller
+und den TM16xx Bausteinen. Waehrend TM1637 und TM1651 eine 2-Drahtverbindung aehnlich einer
+I2C Verbindung (aber eben nur aehnlich) benoetigen, benoetigt der TM1638 eine 3-Drahtver-
+bindung.
+
+Zudem benoetigt er bei der Kommuinikation zu einem LED-Register einen Zugriff mehr.
+
+Ist die Ansteuerung mit Chinaboard 1 im Vergleich zu TM1637/TM1651 noch aehnlich - hier sind
+Anzeigen mit gemeinsamer Kathode verbaut- ist die Ansteuerung fuer Chinaboard 2 (mit 16 Tasten)
+erheblich abweichend.
+
+Verwendete 7-Segmentanzeigen sind:
+
+        - Chinaboard 1 (gemeinsame Kathode): 3641AH
+
+        - Chinaboard 2 (gemeinsame Anode)  : KYX-3461BS
+
+  ------------------------------------------------------------------------------------
+                       Anordnung der Digits der beiden Boards
+  ------------------------------------------------------------------------------------
+          ________________________________  ________________________________
+         |                                ||                                |
+         |     DIG7  DIG6   DIG5  DIG4    ||     DIG3  DIG2   DIG1  DIG0    |
+         |      __    __     __    __     ||      __    __     __    __     |
+         |     |__|  |__|   |__|  |__|    ||     |__|  |__|   |__|  |__|    |
+         |     |__|. |__|.  |__|. |__|.   ||     |__|. |__|.  |__|. |__|.   |
+         |                                ||                                |
+         |________________________________||________________________________|
+
+  ------------------------------------------------------------------------------------
+                           Besonderheiten des Chinaboards 2
+  ------------------------------------------------------------------------------------
+
+Umstaendlicherweise werden die Anoden einzelner Digitanzeigen des Chinaboards 2
+nicht ueber die Multiplexausgaenge des TM1638 gesteuert, sondern ueber die Segment-
+ausgaenge einer Anzeige. D.h. DIG0 wird ueber einen Ausgang gesteuert, der im Register
+des TM1638 die Bitposition fuer das Segment A eines Digits einnimmt. DIG1 wird
+gemultiplext Bitposition fuer Segment B usw.
+
+Das Setzen einzelner Segmente im Digit wird hingegen von den Anschluessen vorgenommen, die
+ueblicherweise fuer das Multiplexen der Digits zustaendig waeren (wie bspw. beim
+Chinaboard 1)
+
+Diese Art des Anschlusses ist dem Umstand geschuldet, dass der TM1638 sowohl gemeinsame
+Anoden wie gemeinsame Kathoden treiben kann, der Softwareaufwand fuer gemeinsame Anoden ist
+hierbei jedoch groesser.
+
+==> es ist NICHT moeglich durch das Beschreiben einer Speicherstelle ein Digit mit einem
+    Wert zu beaufschlagen, es muessen immer alle Speicherstellen beschrieben werden um
+    einen 8 stelligen Wert darstellen zu koennen.
+
+
+  ------------------------------------------------------------------------------------
+                                        Framebuffer
+  ------------------------------------------------------------------------------------
+
+Aufgrund der umstaendlichen Programmierung des Boards wurde ein, wenn auch sehr kleiner,
+8 Byte grosser, Framebuffer zur Darstellung auf den Anzeigen implementiert, der die
+Bitmuster fuer die einzelnen Ziffern oder Buchstaben aufnimmt.
+
+Mit Ausnahme der Darstellung von dezimalen oder hexadezimalen Zahlen (sowie eventueller
+Dezimalpunkte), muss, um etwas auf der Anzeige darzustellen, zuerst dieser Frame-
+buffer beschrieben und anschliessend angezeigt werden.
+
+Das Anzeigen dezimaler oder hexadezimaler Zahlen erfolgt automatisch.
+
+Das Softwaremodul ist in der Namensgebung der Funktionen in 2 Gruppen unterteilt:
+
+        fb1638_       : Funktionen zur Arbeit mit dem Framebuffer
+        tm1638_       : Funktionen zur Arbeit mit der Hardware des Chips
+
+
+##############################################################################################
+  Der Header tm1638.h
+##############################################################################################
+
+Die wichtigste im Header vorzunehmende Einstellung ist die, um welches Board es sich
+handelt:
+
+
+          #define board_version    1
+
+          // 1 => Board 1 mit 8 Tasten und zusaetzlichen 8 Einzel-LED
+          // 2 => Board 2 mit 16 Tasten
+
+Desweiteren ist anzugeben, ueber welche Anschluesse der Controller mit dem TM1638 verbunden
+ist:
+
+          /* -------------------------------------------------------------
+                 Anschluss CLK, DIO und STB des TM1638 an den Controller
+             ------------------------------------------------------------- */
+
+          // DIO nach PA7
+          #define sda_init()        PA7_input_init()
+          #define bb_sda_hi()       sda_init()
+          #define bb_sda_lo()       { PA7_output_init();  PA7_clr(); }
+          #define bb_is_sda()       is_PA7()
+
+          // CLK nach PA5
+          #define scl_init()        PA5_input_init()
+          #define bb_scl_hi()       scl_init()
+          #define bb_scl_lo()       { PA5_output_init(); PA5_clr(); }
+
+          // STB nach PA6
+          #define stb_init()        PA6_output_init()
+          #define bb_stb_hi()       PA6_set()
+          #define bb_stb_lo()       PA6_clr()
+
+Das Softwaremodul haelt eine Funktion fuer Board 2 bereit, mit der es moeglich ist, ueber
+das Tastenfeld dezimale Integerzahlen einzugeben (Wertebereich 0 .. 99999999). Da dieses
+im Flashspeicher relativ viel Speicherplatz benoetigt, kann dieses optional dem Code hin-
+zugefuegt oder abgeschaltet werden:
+
+  /* ----------------------------------------------------------
+                  Einbinden optionaler Funktion
+     ---------------------------------------------------------- */
+  #define readint_enable   1                      // 1 = Funktion Integerzahl einlesen einbinden
+                                                  // 0 = disable
+
+tm1638.h exportiert 2 globale Variable:
+
+  extern uint8_t fb1638[8];                       // der Framebuffer fuer die Anzeige
+
+Hierdurch ist es moeglich das 8 Byte grosse Array mit anderen Arrays auszutauschen (bspw. um
+den Displayinhalt zu speichern / restaurieren)
+
+  extern uint8_t tm1638_brightness;               // Puffervariable zum Setzen der Helligkeit
+
+Ermoeglicht die Helligkeitssteuerung des Displays durch einfache Zuweisung einer Zahl im
+Bereich von 0..7 zu dieser Variable.
+
+##############################################################################################
+  Die Funktionen von tm1638.c
+##############################################################################################
+
+  -----------------------------------------------------------------------------
+  Gruppe Framebuffer
+  -----------------------------------------------------------------------------
+
+  Makro  fb1638_clr()
+  void   fb1638_setbmp(uint8_t b, uint8_t pos);
+  void   fb1638_putseg(uint8_t pos, uint8_t setrst);
+  void   fb1638_setchar(uint8_t ch, uint8_t pos);
+  void   fb1638_puts(const char *s, char pos);
+  Makro  fb1638_prints(s, pos)
+
+
+  ---------------------------------------------------
+  fb1638_clr()
+  ---------------------------------------------------
+
+  Makro, loescht den Framebuffer, jedes einzelne Segment ist abgeschaltet
+
+  ---------------------------------------------------
+  void   fb1638_setbmp(uint8_t b, uint8_t pos);
+  ---------------------------------------------------
+
+  Setzt ein Bitmap b in den Framebuffer ein. Dieses Bitmap repraesentiert das Leuchtmuster
+  eines einzelnen Digits, Bit-0 entspricht Segment A, Bit-6 entspricht Segment G, Bit-7
+  entspricht dem Dezimalpunkt.
+
+  pos gibt die Position an, an der das Bitmap eingefuegt wird. Position 0 ist links
+
+  ---------------------------------------------------
+  void   fb1638_putseg(uint8_t pos, uint8_t setrst);
+  ---------------------------------------------------
+
+  fb1638_putseg ermoeglicht das Ansprechen eines beliebigen Segments egal in welchem Digit.
+
+         Zuordnung der Position zu den einzelnen Segmenten in den Digits
+
+         Board 1:
+         -------------------------------------------------------------
+
+                        DIG7  DIG6  DIG5  DIG4  DIG3  DIG2  DIG1  DIG0
+         Segmentnr. A     0     8    16    24    32    40    48    56
+         Segmentnr. B     1     9    17    25    33    41    49    57
+         Segmentnr. C     2    10    18    26    34    42    50    58
+         Segmentnr. D     3    11    19    27    35    43    51    59
+         Segmentnr. E     4    12    20    28    36    44    52    60
+         Segmentnr. F     5    13    21    29    37    45    53    61
+         Segmentnr. G     6    14    22    30    38    46    54    62
+         Segmentnr. dp    7    15    23    31    39    47    55    63
+
+
+         Board 2:
+         -------------------------------------------------------------
+
+                        DIG7  DIG6  DIG5  DIG4  DIG3  DIG2  DIG1  DIG0
+         Segmentnr. A     7     6     5     4     3     2     1     0
+         Segmentnr. B    15    14    13    12    11    10     9     8
+         Segmentnr. C    23    22    21    20    19    18    17    16
+         Segmentnr. D    31    30    29    28    27    26    25    24
+         Segmentnr. E    39    38    37    36    35    34    33    32
+         Segmentnr. F    47    46    45    44    43    42    41    40
+         Segmentnr. G    55    54    53    52    51    50    49    48
+         Segmentnr. dp   63    62    61    60    59    58    57    56
+
+  setrst bestimmt, ob ein einzelnes Segment an- oder ausgeschaltet werden soll.
+
+                 setrst = 1 : Segment an
+                 setrst = 0 : Segment aus
+
+  ---------------------------------------------------
+  void   fb1638_setchar(uint8_t ch, uint8_t pos);
+  ---------------------------------------------------
+
+  fuegt ein Ascii-Zeichen an der angegebenen Position ein. Position 7 entspricht hier dem
+  linken Digit (7). Naturgemaess koennen nicht alle  Zeichen korrekt auf einer 7-Segment-
+  anzeige korrekt dargestellt werden. Die Bitmaps der Ascii-Zeichen liegen im Array bmp7asc
+  in der Datei tm1638.c
+
+  ---------------------------------------------------
+  void   fb1638_puts(const char *s, char pos);
+  ---------------------------------------------------
+
+  Zeigt einen maximal 8 Zeichen grossen String, der im Flashrom liegt auf der Anzeige ab
+  der angegebenen Position an. Position 7 entspricht hier dem linken Digit (7). Ist der
+  String zu lang, wird dieser "abgeschnitten". Es empfiehlt sich, das Makro fb1638_prints
+  zu verwenden, welches fb1638_puts aufruft.
+
+  Beispiel Textausgabe "Error" linksbuendig:
+
+        fb1638_puts(PSTR("Error"), 7);
+
+  ---------------------------------------------------
+  fb1638_prints(s, pos)
+  ---------------------------------------------------
+
+  Makro, das den Umgang mit fb1638_puts vereinfacht. Es wird automatisch der Zeiger die
+  Speicheradresse des Strings generiert.
+
+  Beispiel Textausgabe "Error" linksbuendig:
+
+        fb1638_prints("Error", 7);
+
+  -----------------------------------------------------------------------------
+  Gruppe TM1638
+  -----------------------------------------------------------------------------
+
+  void     tm1638_init(void);
+  void     tm1638_wradr(uint8_t adr, uint8_t value);
+  void     tm1638_clear(void);
+  void     tm1638_showbuffer(void);
+  void     tm1638_setdp(uint8_t pos, uint8_t enable);
+  void     tm1638_setdez(int32_t value, uint8_t pos, uint8_t nozero);
+  void     tm1638_sethex(int32_t value, uint8_t pos, uint8_t nozero);
+  uint8_t  tm1638_readkeys(void);
+
+  Nur Board 1
+  ---------------------------------------------
+
+  void tm1638_setled(uint8_t value);
+  uint8_t tm1638_readkeymatrix(void);
+
+  Nur Board 2
+  ---------------------------------------------
+
+  uint8_t  tm1638_readint(uint32_t *value);
+
+
+
+  ---------------------------------------------------
+  void     tm1638_init(void);
+  ---------------------------------------------------
+
+  Konfiguriert die Anschlusspins des Microcontrollers zur Verwendung mit demTM1638, loescht
+  den Framebuffer und zeigt diesen (leeren) Framebuffer an, sodass die Anzeige als geloescht
+  erscheint.
+
+  ---------------------------------------------------
+  void     tm1638_wradr(uint8_t adr, uint8_t value);
+  ---------------------------------------------------
+
+  Beschreibt einen LED-Speicherplatz an Adresse adr mit dem Wert value.
+
+  Hinweis: Bei jedem Schreibzugriff ueber tm1638_wradr wird die Helligkeit der Anzeige mit
+  dem Wert in tm1638_brightnes neu gesetzt.
+
+  ---------------------------------------------------
+  void     tm1638_clear(void);
+  ---------------------------------------------------
+
+  Loescht die Anzeige, jedoch nicht den Framebuffer
+
+  ---------------------------------------------------
+  void     tm1638_showbuffer(void);
+  ---------------------------------------------------
+
+  Zeigt den Framebuffer fb1638 an.
+
+  ---------------------------------------------------
+  void     tm1638_setdp(uint8_t pos, uint8_t enable);
+  ---------------------------------------------------
+
+  Schaltet den Dezimalpunkt an der angegebenen Position an oder aus. Position 0 ist links
+  (Digit 0).
+  tm1638_setdp veraendert den Framebuffer und zeigt diesen SOFORT an !!!
+
+      enable = 1 : Dezimalpunkt wird eingeschaltet
+      enable = 0 : Dezimalpunkt wird ausgeschaltet
+
+  -----------------------------------------------------------------------
+  void     tm1638_setdez(int32_t value, uint8_t pos, uint8_t nozero);
+  -----------------------------------------------------------------------
+
+  Zeigt einen 32-Bit grossen, dezimalen Integerwert ab der Position pos an. Position 0 ist
+  links (Digit 0). Hierfuer wird der komplette Framebuffer neu beschrieben und dieser sofort
+  angezeigt.
+
+  nozero gibt an, ob fuehrende Nullen angezeigt werden sollen oder nicht.
+      nozero = 1 : keine fuehrende Nullen darstellen
+      nozero = 0 : fuehrende Nullen darstellen
+
+  Beispiel den Wert 1024 mittig ohne fuehrende Nullen darstellen:
+
+           tm1638_setdez(1024, 2, 1);
+
+  -----------------------------------------------------------------------
+  void     tm1638_sethex(int32_t value, uint8_t pos, uint8_t nozero);
+  -----------------------------------------------------------------------
+
+  Zeigt einen 32-Bit grossen, hexadezimalen Integerwert ab der Position pos an. Position 0 ist
+  links (Digit 0). Hierfuer wird der komplette Framebuffer neu beschrieben und dieser sofort
+  angezeigt.
+
+  nozero gibt an, ob fuehrende Nullen angezeigt werden sollen oder nicht.
+      nozero = 1 : keine fuehrende Nullen darstellen
+      nozero = 0 : fuehrende Nullen darstellen
+
+  Beispiel den Wert 0xabcd mittig ohne fuehrende Nullen darstellen:
+
+           tm1638_sethex(0xabcd, 2, 1);
+
+  ---------------------------------------------------
+  uint8_t  tm1638_readint(uint32_t *value);
+  ---------------------------------------------------
+
+  Scant die angeschlossenen Tasten ein und liefert den Wert einer gedrueckten Taste. Leider
+  kann der TM1638 keine Tastenmatrix einlesen und somit ist es nur moeglich, eine einzelne
+  Taste gedrueckte Taste zu erfassen (nicht mehrere gleichzeitig).
+
+  Board 1 liefert den Zahlenwert entsprechend des Aufdrucks auf dem Board zurueck.
+
+
+                Die Tastatur des Boards 2 hat folgende Zuordnung:
+
+                                  1   2   3   4
+                                  5   6   7   8
+                                  9  10  11  12
+                                 13  14  15  16
+
+             Ist keine Taste gedrueckt, wird eine 0 zurueckgegeben.
+
+  -----------------------------------------------------------------------------
+  Funktionen, die nur fuer Board 1 verfuegbar sind
+  -----------------------------------------------------------------------------
+
+  ---------------------------------------------------
+  uint8_t tm1638_readkeymatrix(void);
+  ---------------------------------------------------
+
+  liefert eine Bitmatrix der aktuell gedrueckten Tasten zurueck. Eine gedrueckte Taste
+  S1 setzt das Bit0, eine gedrueckte Taste S2 setzt Bit1 usw.
+
+  Werden bspw. alle Tasten gedrueckt, so wird der Wert 0xFF zurueck geliefert.
+
+
+  ---------------------------------------------------
+  void tm1638_setled(uint8_t value),
+  ---------------------------------------------------
+
+  Setzt das Bitmuster der 8 einzelnen LEDS (so, als waeren sie an einem zusammenhaengenden
+  Port angeschlossen.
+
+  Bit 0 in value setzt LED8, Bit 1 setzt LED7 usw.
+
+
+  -----------------------------------------------------------------------------
+  Funktionen, die nur fuer Board 2 verfuegbar sind
+  -----------------------------------------------------------------------------
+  ---------------------------------------------------
+  uint8_t  tm1638_readint(uint32_t *value);
+  ---------------------------------------------------
+
+  tm1638_readint ist eine optionale Funktion und muss im Header tm1638.h freigeschaltet
+  werden (siehe tm1638.h / readint_enable).
+
+  tm1638_readint besitzt folgendes Tastaturlayout (welches im Array calckeymap definiert ist):
+
+                                  7    8    9    /
+                                  4    5    6    *
+                                  1    2    3    -
+                                 ent   0   clr   +
+
+  *value ist eine Referenz auf einen 32-Bit Integer, der beim Eintritt in die Funktion an-
+  gezeigt wird und beim ersten Betaetigen einer Taste geloescht und durch die Anzeige der
+  Eingabe ersetzt wird.
+
+  Jede Betaetigung von einer Zifferntaste abweichende Taste beendet die Eingabefunktion, die
+  Referenz von *value wird mit der Eingabe beschrieben, der Rueckgabewert der Funktion ent-
+  spricht der Funktionstaste, die die Eingabe beendet hat (ent, clr, /, *, - oder +).
+
+  Beispiel:
+
+     uint32_t  zahl;
+     uint8_t   ctrlkey;
+     .
+     .
+     zahl= 123;
+
+     ctrlkey= tm1638_readint(&zahl);             // Funktion wird gestartet, beim Start der
+                                                 // Funktion wird 123 angezeigt
+
+     // Eingabe (zu verfolgen auf Anzeige) des Wertes 512 mit Betaetigung ENTER
+
+      Zahl hat jetzt den Wert 512, ctrlkey den Wert 0x0d (13 dezimal)
+
+##############################################################################################
+  Maerz 2019  (c) by R. Seelig
+##############################################################################################

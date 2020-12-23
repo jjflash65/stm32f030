@@ -1,0 +1,1 @@
+cmd_/home/f030_example/bootloader/stm32flash/ch340_driverpatch/built-in.o :=  rm -f /home/f030_example/bootloader/stm32flash/ch340_driverpatch/built-in.o; ar rcsD /home/f030_example/bootloader/stm32flash/ch340_driverpatch/built-in.o

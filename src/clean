@@ -1,0 +1,3 @@
+rm -f *.o
+rm -f *.bak
+rm -f cide.*

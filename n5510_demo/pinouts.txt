@@ -1,0 +1,112 @@
+                     ##################################################################
+                                           STM32F030F4P6 Pins (TSSOP20)
+                     ##################################################################
+
+                                                  +-------------+
+                                           boot0  |  1       20 | PA14 - SWCLK - USART1_TX
+                         PF0 - osc_in - I2C1_SDA  |  2   S   19 | PA13 - SWDIO - IR_OUT
+                        PF1 - osc_out - I2C1_SCL  |  3   T   18 | PA10 - USART1_RX - TIM1_CH3 - TIM17_BKIN - I2C1_SDA
+                             NRST - (active low)  |  4   M   17 | PA9 - USART1_TX - TIM1_CH2 - I2C1_SCL
+          Vdda - analog power supply (max. 3.6V)  |  5   3   16 | Vdd - power supply (max. 3.6V)
+  PA0 - USART1_CTS - ADC_in0 - RTC_TAMP2 - WKUP1  |  6   2   15 | Vss - GND
+                      PA1 - USART1_RTS - ADC_in1  |  7   F   14 | PB1 - TIM3_CH4 - TIM14_CH1 - TIM1_CH3N - ADC_in9
+                       PA2 - USART1_TX - ADC_in2  |  8   0   13 | PA7 - SPI1_MOSI - TIM3_CH2 - TIM14_CH1 - TIM1_CH1N - EVENTOUT - ADC_in7
+                       PA3 - USART1_RX - ADC_in3  |  9   3   12 | PA6 - SPI1_MISO - TIM3_CH1 - TIM1_BKIN - TIM16_CH1 - EVENTOUT - ADC_in6
+PA4 - SPI1_NSS - USART1_CK - TIM14_CH1 - ADC_in4  | 10   0   11 | PA5 - SPI1_SCK - ADC_in5
+                                                  +-------------+
+
+
+
+    Pinbelegungen:
+
+
+                     G   V           R
+                     N   c   D   D   E   D   C
+                     D   c   0   1   S   C   s
+                 +-------------------------------+
+                 |   o   o   o   o   o   o   o   |
+                 |                               |
+                 |   -------------------------   |
+                 |  |                         |  |
+                 |  |                         |  |
+                 |  |     OLED1306 - SPI      |  |
+                 |  |                         |  |
+                 |  |                         |  |
+                 |  |                         |  |
+                 |   -----+-------------+-----   |
+                 |        |             |        |
+                 |        +-------------+        |
+                 +-------------------------------+
+
+     STM32f030              | Display OLED1306 - SPI
+                              (128x64 Pixel)
+    ------------------------------------------------
+                              GND              (1)
+                              Vcc              (2)
+       PA5          ---       D0 (CLK)         (3)
+       PA7          ---       D1 (DIN / MOSI)) (4)
+       PA2          ---       RST              (5)
+       PA3          ---       DC               (6)
+       PA4          ---       CE               (7)
+
+
+
+                          V   G   S   S
+                          c   N   C   DC
+                          c   D   L   As
+                +-------------------------------+
+                |         o   o   o   o         |
+                |                               |
+                |   -------------------------   |
+                |  |                         |  |
+                |  |                         |  |
+                |  |     OLED1306 - I2C      |  |
+                |  |                         |  |
+                |  |                         |  |
+                |  |                         |  |
+                |   -----+-------------+-----   |
+                |        |             |        |
+                |        +-------------+        |
+                +-------------------------------+
+
+    STM32f030               | Display OLED1306 - I2C
+                              (128x64 Pixel)
+    ------------------------------------------------
+                              GND              (1)
+                              Vcc              (2)
+       PA9  (I2C1)  ---       SCL              (3)
+       PA10 (I2C1)  ---       SDA              (4)
+
+
+                     R           D   C   V   L   G
+                     S   C   D   I   L   C   E   N
+                     T   E   C   N   K   C   D   D
+                 +-----------------------------------+
+                 |   o   o   o   o   o   o   o   o   |
+                 |                                   |
+                 |   ---------------------------     |
+                 |  |                           |    |
+                 |  |                           |    |
+                 |  |        N5110 - SPI        |    |
+                 |  |                           |    |
+                 |  |                           |    |
+                 |  |                           |    |
+                 |   -------+-------------+-----     |
+                 |          |             |          |
+                 |          +-------------+          |
+                 +-----------------------------------+
+
+
+
+     STM32f030              | Display N5110 - SPI
+                              (84x48 Pixel)
+    ------------------------------------------------
+       PA2          ---       RST              (1)
+       PA4          ---       CE               (2)
+       PA3          ---       DC               (3)
+       PA7          ---       D1 (DIN / MOSI)) (4)
+       PA5          ---       D0 (CLK)         (5)
+                              Vcc (+3,3V)      (6)
+                              LED (GND)        (7)
+                              GND              (8)
+
