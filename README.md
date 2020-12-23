@@ -2,7 +2,7 @@ STM32F03F4P6
 ------------------------------------------------------------
 
 Hier handelt es sich um ein eingerichtetes Setup fuer
-STM32F030 Microcontroller in Verbindung mit lipobencm3.
+STM32F030 Microcontroller in Verbindung mit libopencm3.
 
 In jedem Verzeichnis ist ein sehr einfaches Makefile ent-
 halten, das den Bedürfnissen angepasst werden kann (oder
